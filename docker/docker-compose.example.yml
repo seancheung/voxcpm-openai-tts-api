@@ -1,0 +1,29 @@
+services:
+  voxcpm-cuda:
+    image: ghcr.io/seancheung/voxcpm-openai-tts-api:cuda-latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./voices:/voices:ro
+      - ./hf_cache:/root/.cache/huggingface
+    environment:
+      VOXCPM_MODEL: "openbmb/VoxCPM2"
+      VOXCPM_DEVICE: "cuda"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  voxcpm-cpu:
+    image: ghcr.io/seancheung/voxcpm-openai-tts-api:latest
+    ports:
+      - "8010:8000"
+    volumes:
+      - ./voices:/voices:ro
+      - ./hf_cache:/root/.cache/huggingface
+    environment:
+      VOXCPM_MODEL: "openbmb/VoxCPM2"
+      VOXCPM_DEVICE: "cpu"

@@ -1,0 +1,44 @@
+FROM python:3.10-slim-bookworm
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8 \
+    HF_HOME=/root/.cache/huggingface \
+    HF_HUB_ENABLE_HF_TRANSFER=1 \
+    PIP_NO_CACHE_DIR=1 \
+    VOXCPM_DEVICE=cpu
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git \
+        ffmpeg \
+        libsndfile1 \
+        ca-certificates \
+        build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# CPU-only PyTorch. Use --extra-index-url (PyTorch index does not mirror all
+# transitive deps) and pin the +cpu local version to keep pip from reaching
+# for PyPI's CUDA-enabled manylinux wheel.
+RUN pip install --extra-index-url https://download.pytorch.org/whl/cpu \
+        torch==2.5.1+cpu torchaudio==2.5.1+cpu
+
+WORKDIR /opt/api
+
+COPY VoxCPM /opt/api/VoxCPM
+# VoxCPM uses setuptools_scm for dynamic versioning; .git is excluded from the
+# build context, so pretend-version avoids a setuptools_scm LookupError.
+RUN SETUPTOOLS_SCM_PRETEND_VERSION_FOR_VOXCPM=0.0.0 \
+        pip install /opt/api/VoxCPM && \
+    pip install hf_transfer
+
+COPY docker/requirements.api.txt /tmp/requirements.api.txt
+RUN pip install -r /tmp/requirements.api.txt
+
+COPY app /opt/api/app
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8000
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8000"]
